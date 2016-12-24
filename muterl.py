@@ -28,13 +28,11 @@ default_config = {'files': "src/*.erl",
                   'backup_folder': 'muterl.backup'}
 
 mutations = {'remove_clause': {'count': muterl_clause.clause_remove_count,
-                               'mutate': muterl_clause.clause_remove}
-#                               ,
-#             'logic_inverse': {'count': muterl_logic.count,
-#                               'mutate': muterl_logic.inverse},
-#             'constant_change': {'count': muterl_constants.count,
-#                                 'mutate': muterl_constants.change}
-                                 }
+                               'mutate': muterl_clause.clause_remove},
+             'logic_inverse': {'count': muterl_logic.count,
+                               'mutate': muterl_logic.inverse},
+             'constant_change': {'count': muterl_constants.count,
+                                 'mutate': muterl_constants.change}}
 
 class ParseError(Exception):
     pass
