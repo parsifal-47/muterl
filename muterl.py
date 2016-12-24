@@ -23,7 +23,7 @@ import parsimonious.exceptions
 
 default_config = {'files': "src/*.erl",
                   'mutants': 100,
-                  'runner': './rebar eunit',
+                  'runner': 'rebar eunit',
                   'report': 'muterl.report',
                   'backup_folder': 'muterl.backup'}
 
@@ -142,13 +142,13 @@ def reduce_config(ast):
 
     return sub
 
-def read_config(file = 'muterl.conf'):
+def read_config(file = 'muterl.config'):
     if not os.path.isfile(file):
         return default_config
 
     config_grammar = Grammar("""\
     entry = _ (term "." _)*
-    term = "{" _ atom _ "," _ (string / number) _ "}"
+    term = "{" _ atom _ "," _ (string / number / atom) _ "}"
     atom = ~"[a-z][0-9a-zA-Z_]*"
     string = '"' ~r'(\\\\"|[^"])*' '"'
     number = ~"[0-9]+"
@@ -188,9 +188,23 @@ def mutation(number, files, asts, mutation_matrix, runner,
                                        backup_folder + "/" + files[i] + " " +
                                        files[i] + "; true", shell = True))
                     restore(backup_folder, files[i])
-                break
+                return
             else:
                 number = number - mutation_matrix[mutation_name][i]
+
+def filter_node(regexp, direction, node):
+    if node.expr_name != "function":
+        return True
+    rr = regexp.match(node.children[0].children[0].children[0].text)
+    if (rr is None and direction) or (rr is not None and direction == False):
+        return False
+    return True
+
+def filter_fun(regexp, direction, ast):
+    if ast.children:
+        ast.children = filter(lambda x: filter_node(regexp, direction, x),
+            ast.children)
+        map(lambda x: filter_fun(regexp, direction, x), ast.children)
 
 def main():
     args = docopt.docopt(__doc__, version='0.1.0')
@@ -203,6 +217,16 @@ def main():
     files = glob.glob(config["files"])
     backup(config["backup_folder"], files)
     asts = map(lex, map(contents, files))
+
+    if "functions" in config:
+        map(lambda x: filter_fun(re.compile(config["functions"]), True, x), asts)
+
+    if "functions_skip" in config:
+        map(lambda x: filter_fun(re.compile(config["functions_skip"]), False, x), asts)
+
+    for name in config:
+        if name in mutations and config[name] == "disable":
+            del mutations[name]
 
     mutation_matrix = {}
     all_mutants = 0
