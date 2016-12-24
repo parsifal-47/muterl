@@ -1,18 +1,40 @@
 #!/usr/bin/env python
+"""muterl
+Usage:
+    muterl [--mutation=<number>]
+    muterl -h | --help
+Options:
+    --mutation <number> Create particular mutation
+    -h, --help       Show this help
+"""
 
 import re
 import os
 import glob
 import shutil
 import random
+import docopt
 import subprocess
+import muterl_logic
+import muterl_clause
+import muterl_constants
 from parsimonious.grammar import Grammar
 import parsimonious.exceptions
 
 default_config = {'files': "src/*.erl",
                   'mutants': 100,
                   'runner': './rebar eunit',
+                  'report': 'muterl.report',
                   'backup_folder': 'muterl.backup'}
+
+mutations = {'remove_clause': {'count': muterl_clause.clause_remove_count,
+                               'mutate': muterl_clause.clause_remove}
+#                               ,
+#             'logic_inverse': {'count': muterl_logic.count,
+#                               'mutate': muterl_logic.inverse},
+#             'constant_change': {'count': muterl_constants.count,
+#                                 'mutate': muterl_constants.change}
+                                 }
 
 class ParseError(Exception):
     pass
@@ -123,7 +145,7 @@ def reduce_config(ast):
     return sub
 
 def read_config(file = 'muterl.conf'):
-    if !os.path.isfile(file):
+    if not os.path.isfile(file):
         return default_config
 
     config_grammar = Grammar("""\
@@ -152,79 +174,28 @@ def contents(filename):
     with open(filename) as file:
         return file.read()
 
-def clause_count(ast):
-    if ast.expr_name[-6:] == "clause":
-        return 1
-    if ast.children:
-        return sum(map(clause_count, ast.children))
-    return 0
-
-def clause_remove_count(ast):
-    if ast.expr_name in ["function", "case", "trycatch", "lambda"]:
-        clauses = sum(map(clause_count, ast.children))
-        return clauses if clauses > 1 else 0
-    if ast.children:
-        return sum(map(clause_remove_count, ast.children))
-    return 0
-
-def clause_no(number, start, end, ast):
-    if ast.expr_name[-6:] == "clause":
-        return (-1, ast.start, ast.end) if number == 0 else (number - 1, start, end)
-    if ast.children:
-        return reduce(lambda (a, b, c), x:clause_no(a, b, c, x),
-            ast.children, (number, start, end))
-    return (number, start, end)
-
-def find_semicolon(number, start, end, ast):
-    if number == 1 and ast.full_text[ast.start:ast.end] == ";":
-        return (number, ast.start, ast.end)
-    if ast.expr_name[-6:] == "clause":
-        return (number + 1, start, end)
-    if ast.children:
-        return reduce(lambda (a, b, c), x:find_semicolon(a, b, c, x),
-            ast.children, (number, start, end))
-    return (number, start, end)
-
-def clause_remove(number, ast, filename):
-    if ast.expr_name in ["function", "case", "trycatch", "lambda"]:
-        clauses = sum(map(clause_count, ast.children))
-        if clauses <= 1:
-            return number
-        if number == 0:
-            (_N, start, end) = clause_no(number, 0, 0, ast)
-            (_N, start2, end2) = find_semicolon(0, 0, 0, ast)
-            with open(filename, 'w') as file:
-                file.write(ast.full_text[:start-1])
-                file.write(ast.full_text[end+1:start2-1])
-                file.write(ast.full_text[end2+1:])
-
-        if number < clauses and number > 0:
-            (_N, start, end) = clause_no(number, 0, 0, ast)
-            with open(filename, 'w') as file:
-                file.write(ast.full_text[:start-1])
-                file.write(ast.full_text[end+1:])
-
-        return number - clauses
-    if ast.children:
-        return reduce(lambda a, x: clause_remove(a, x, filename), ast.children, number)
-    return number
-
-def mutation(number, files, asts, possible_mutants, runner, backup_folder):
-    print "Running mutation #" + str(number)
-    for i in range(0, len(files)):
-        if number < possible_mutants[i]:
-            clause_remove(number, asts[i], files[i])
-            if subprocess.call(runner, shell=True) == 0:
-                print "Mutant survived, affected file: " + files[i]
-                print "Diff:"
-                subprocess.call(["diff", files[i],
-                        backup_folder + "/" + files[i]], shell = True)
-            restore(backup_folder, files[i])
-            break
-        else:
-            number = number - possible_mutants[i]
+def mutation(number, files, asts, mutation_matrix, runner,
+            backup_folder, report, simulate = False):
+    if not simulate:
+        print "Running mutation #" + str(number)
+    for mutation_name in mutation_matrix:
+        for i in range(0, len(files)):
+            if number < mutation_matrix[mutation_name][i]:
+                mutations[mutation_name]['mutate'](number, asts[i], files[i])
+                if not simulate:
+                    if subprocess.call(runner, shell=True) == 0:
+                        with open(report, 'a') as file:
+                            file.write("Mutant #" + str(number) + " survived, affected file: " + files[i] + "\n")
+                            file.write(subprocess.check_output("diff -c " +
+                                       backup_folder + "/" + files[i] + " " +
+                                       files[i] + "; true", shell = True))
+                    restore(backup_folder, files[i])
+                break
+            else:
+                number = number - mutation_matrix[mutation_name][i]
 
 def main():
+    args = docopt.docopt(__doc__, version='0.1.0')
     config = read_config()
 
     if subprocess.call(config["runner"], shell=True) != 0:
@@ -234,18 +205,28 @@ def main():
     files = glob.glob(config["files"])
     backup(config["backup_folder"], files)
     asts = map(lex, map(contents, files))
-    possible_mutants = map(clause_remove_count, asts)
-    all_mutants = sum(possible_mutants)
 
-    if all_mutants < config["mutants"]:
-        print "Not enough possibilites to create " + str(config["mutants"]) + \
-              "only " + str(all_mutants) + " are available"
-        config["mutants"] = all_mutants
+    mutation_matrix = {}
+    all_mutants = 0
+    for name in mutations:
+        mutation_matrix[name] = map(mutations[name]['count'], asts)
+        all_mutants = all_mutants + sum(mutation_matrix[name])
 
-    for i in range(0, config["mutants"]):
-        mutation(random.randrange(all_mutants),
-                 files, asts, possible_mutants,
-                 config["runner"], config["backup_folder"])
+    if args['--mutation'] is not None:
+        print "All mutations count " + str(all_mutants) + ", mutating #" + \
+              args['--mutation']
+        mutation(int(args['--mutation']), files, asts, mutation_matrix,
+        config["runner"], config["backup_folder"], config["report"], True)
+    else:
+        if all_mutants < config["mutants"]:
+            print "Not enough possibilites to create " + str(config["mutants"]) + \
+                  "only " + str(all_mutants) + " are available"
+            config["mutants"] = all_mutants
+
+        for i in range(0, config["mutants"]):
+            mutation(random.randrange(all_mutants),
+                     files, asts, mutation_matrix,
+                     config["runner"], config["backup_folder"], config["report"])
 
 if __name__ == '__main__':
         main()
