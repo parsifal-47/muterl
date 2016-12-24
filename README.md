@@ -12,11 +12,13 @@ in your project folder.
 
 Default options are:
 
-  {files, "src/*.erl"}.
-  {mutants, 100}.
-  {runner, "./rebar eunit"}.
-  {report, "muterl.report"}.
-  {backup_folder, "muterl.backup"}.
+```erlang
+{files, "src/*.erl"}.
+{mutants, 100}.
+{runner, "./rebar eunit"}.
+{report, "muterl.report"}.
+{backup_folder, "muterl.backup"}.
+```
 
 To use, run from your project folder, don't forget to backup everything!
 
