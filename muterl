@@ -2,6 +2,8 @@
 """muterl
 Usage:
     muterl [--mutation=<number>]
+    muterl --mutation-count
+    muterl --check-parsing
     muterl -h | --help
 Options:
     --mutation <number> Create particular mutation
@@ -34,10 +36,7 @@ mutations = {'remove_clause': {'count': muterl_clause.clause_remove_count,
              'constant_change': {'count': muterl_constants.count,
                                  'mutate': muterl_constants.change}}
 
-class ParseError(Exception):
-    pass
-
-def lex(text):
+def lex((filename, text)):
     grammar = Grammar("""\
     entry = _ (form _ "." _)*
     form = ("-spec" _ atom typed_vals _ "->" _ expression _ )
@@ -124,7 +123,9 @@ def lex(text):
     try:
         return grammar.parse(text)
     except parsimonious.exceptions.ParseError as e:
-        raise ParseError(e)
+        print "Parsing for " + filename + " failed, reason: " + str(e)
+        print "Skipping this file"
+        return None
 
 def reduce_config(ast):
     if ast.expr_name == "number":
@@ -210,13 +211,17 @@ def main():
     args = docopt.docopt(__doc__, version='0.1.0')
     config = read_config()
 
-    if subprocess.call(config["runner"], shell=True) != 0:
-        print "Initial test check failed, exiting"
-        exit(1)
+    if args['--mutation-count'] is None and args['--check-parsing'] is None:
+        if subprocess.call(config["runner"], shell=True) != 0:
+            print "Initial test check failed, exiting"
+            exit(1)
 
     files = glob.glob(config["files"])
     backup(config["backup_folder"], files)
-    asts = map(lex, map(contents, files))
+    asts = map(lex, zip(files, map(contents, files)))
+
+    if args['--check-parsing']:
+        exit(2 if any(map(lambda x:x is None, asts)) else 0)
 
     if "functions" in config:
         map(lambda x: filter_fun(re.compile(config["functions"]), True, x), asts)
@@ -233,6 +238,10 @@ def main():
     for name in mutations:
         mutation_matrix[name] = map(mutations[name]['count'], asts)
         all_mutants = all_mutants + sum(mutation_matrix[name])
+
+    if args['--mutation-count'] is not None:
+        print str(all_mutants)
+        exit()
 
     if args['--mutation'] is not None:
         print "All mutations count " + str(all_mutants) + ", mutating #" + \

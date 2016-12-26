@@ -28,4 +28,12 @@ To selectively enable or disable mutations for a set of functions please specify
 
 To use, run from your project folder, don't forget to backup everything!
 
+Example below starts mutations for jsx:
+```bash
+git clone https://github.com/parsifal-47/muterl
+git clone https://github.com/talentdeficit/jsx
+cd jsx
+../muterl/muterl
+```
+
 Feel free to create tickets and send your feedback!
