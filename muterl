@@ -39,7 +39,7 @@ mutations = {'remove_clause': {'count': muterl_clause.clause_remove_count,
 def lex((filename, text)):
     grammar = Grammar("""\
     entry = _ (form _ "." _)*
-    form = ("-spec" _ atom typed_vals _ "->" _ expression _ )
+    form = ("-spec" _ atom _ typed_vals _ "->" _ expression _ guard?)
            / ("-define" _ "(" _ function_call _ "," _ expression _ ")" _)
            / ("-" atom _ typed_vals)
            / ("-" atom _ attr_vals) / ("-" atom _) / function
@@ -52,22 +52,25 @@ def lex((filename, text)):
     function = function_clause _ (";" _ function_clause _)*
     function_clause = function_head _ guard? "->" _ expression_list
     function_head = atom function_args
-    guard = "when" _ expression _ (guard_op _ expression _)*
+    guard = "when" _ guard_body
+    guard_body = expression _ (guard_op _ expression _)*
     guard_op = "orlese" / "or" / "andalso" / "and" / "," / ";"
 
     expression = ("begin" _ expression_list "end" _ )
            / ("(" _ expression _ ")" _ "(" expression_list ")"
              _ (binary_operator _ expression _)* )
            / ("(" _ expression _ ")" _ (binary_operator _ expression _)* )
-           / ("!" expression _) / ( value _ binary_operator _ expression _)
-           / (value _)
+           / ("not" _ expression _) / ("-" _ expression )
+           / ( value _ binary_operator _ expression _) / (value _)
 
     binary_operator = "++" / "-" / "*" / "/" / "+" / "=:=" / "=/=" / "=="
-                    / "=<" / "=" / "|" / ">=" / ">" / "<" / "andalso" / "orelse"
+                    / "=<" / "=" / "|" / ">=" / ">" / "<"
+                    / "andalso" / "orelse" / "div" / "rem" / "bxor" / "and"
+                    / "bsl" / "bsr" / "bor" / "band" / "!" / "::" / ".."
 
     value =  record_update / record_field / function_ref
-          / if / case / fun_type / lambda / trycatch
-          / function_call / boolean / atom / char
+          / if / case / receive / fun_type / lambda / trycatch / catch
+          / function_call / boolean / atom / char / binary_comprehension
           / list_comprehension / list / tuple / map / string / macros
           / binary / number / identifier / record / triple_dots
 
@@ -80,7 +83,7 @@ def lex((filename, text)):
     record_field = identifier "#" atom "." atom _
 
     function_call = ((atom / identifier) function_args)
-                  / ((atom / identifier) ":" atom function_args)
+                  / ((atom / identifier / macros) ":" (atom / identifier) function_args)
 
     function_args = ("()" _) / ("(" _ expression_list ")" _)
 
@@ -91,34 +94,43 @@ def lex((filename, text)):
     lambda_clause = function_args _ guard? "->" _ expression_list
 
     if = ("if" _ if_clause (";" _ if_clause)* "end" _)
-    if_clause = expression _ "->" _ expression_list _
+    if_clause = guard_body _ "->" _ expression_list _
+
+    receive = "receive" _ (case_clause (";" _ case_clause)*)?
+              ("after" _ expression _ "->" _ expression_list)? "end" _
 
     case = "case" _ expression _ "of" _ case_clause (";" _ case_clause)* "end" _
     case_clause = expression _ guard? "->" _ expression_list _
 
+    catch = "catch" _ expression _
+
     trycatch = ("try" _ expression _ "of" _
                 case_clause (";" _ case_clause)*
-               "catch" _ catch_body "end" _)
-             / ("try" _ expression_list "catch" _ catch_body "end" _)
+               "catch" _ catch_body catch_after? "end" _)
+             / ("try" _ expression_list ("catch" _ catch_body)? catch_after? "end" _)
 
-    catch_body = expression _ ":" _ expression _ "->" _ expression_list
+    catch_after = "after" _ expression_list
+    catch_body = expression _ (":" _ expression _)? "->" _ expression_list
 
     atom = ~"[a-z][0-9a-zA-Z_]*" / ("'" ~"[^']*" "'")
     identifier = ~"[A-Z_][0-9a-zA-Z_]*"
     _ = ~"\s*" (~"%[^\\r\\n]*\s*")*
     list = ("[" _ expression_list ("|" _ expression _)? "]" _) / ("[" _ "]" _)
-    list_comprehension = "[" _ expression _ "||" _ expression _ (("," / "<-" / "<=") _ expression _)* _ "]" _
+    list_comprehension = "[" _ comprehension_body "]" _
+    binary_comprehension = "<<" _ comprehension_body ">>" _
+    comprehension_body = expression _ "||" _ expression _ (("," / "<-" / "<=") _ expression _)* _
     tuple = ("{" _ expression_list "}" _) / ("{" _ "}" _)
     map   = ("#{" _ keyvalue (_ "," _ keyvalue)* _ "}" _) / ("#{" _ "}" _)
     record =("#" atom "{" _ expression (_ "," _ expression)* _ "}" _)
           / ("#" atom "{" _ "}" _)
-    char = "$" "\\\\"? (~".") _
+    char = "$" "\\\\"? (~"(?s).") _
     keyvalue = value _ "=>" _ expression _
-    string = '"' ~r'(\\\\.|[^"])*' '"'
+    string = ('"' ~r'(\\\\.|[^"])*' '"' _)+
     binary = ("<<" _ ">>" _) / ("<<" _ binary_part ("," _ binary_part)* ">>" _)
-    binary_part = expression _ (":" _ value _)? ("/" _ atom _)?
+    binary_part = expression _ (":" _ value _)? ("/" _ typespecifier _)?
+    typespecifier = ~"[a-z][0-9a-z\\\\-:]*"
     boolean = "true" / "false"
-    number = ~"\-?[0-9]+\#[0-9a-zA-Z]+" / ~"\-?[0-9]+(\.[0-9]+)?(e\-?[0-9]+)?"
+    number = ~"\-?[0-9]+\#[0-9a-zA-Z]+" / ~"\-?[0-9]+(\.[0-9]+)?((e|E)(\-|\+)?[0-9]+)?"
     """)
     try:
         return grammar.parse(text)
@@ -236,7 +248,7 @@ def main():
     mutation_matrix = {}
     all_mutants = 0
     for name in mutations:
-        mutation_matrix[name] = map(mutations[name]['count'], asts)
+        mutation_matrix[name] = map(lambda x: mutations[name]['count'](x) if x is not None else 0, asts)
         all_mutants = all_mutants + sum(mutation_matrix[name])
 
     if args['--mutation-count'] is not None:
