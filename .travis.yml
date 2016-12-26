@@ -1,0 +1,13 @@
+language: python
+node_js:
+  - "2.7"
+env:
+ - TASK=selfcheck
+
+install: "pip install parsimonious docopt nose"
+
+script:
+ - case "$TASK" in
+     selfcheck) ./tests.py;;
+     *) exit 1;;
+   esac
