@@ -17,6 +17,7 @@ import shutil
 import random
 import docopt
 import subprocess
+import muterl_lex
 import muterl_logic
 import muterl_clause
 import muterl_constants
@@ -35,109 +36,6 @@ mutations = {'remove_clause': {'count': muterl_clause.clause_remove_count,
                                'mutate': muterl_logic.inverse},
              'constant_change': {'count': muterl_constants.count,
                                  'mutate': muterl_constants.change}}
-
-def lex((filename, text)):
-    grammar = Grammar("""\
-    entry = _ (form _ "." _)*
-    form = ("-spec" _ atom _ typed_vals _ "->" _ expression _ guard?)
-           / ("-define" _ "(" _ function_call _ "," _ expression _ ")" _)
-           / ("-" atom _ typed_vals)
-           / ("-" atom _ attr_vals) / ("-" atom _) / function
-    typed_vals = ("()" _ ) / ("(" _ typed_val _ ("," _ typed_val)* _ ")") / ( typed_val _ )
-    typed_val = expression _ ("::" _ expression _)?
-    attr_vals = ("(" _ expression_list ")") / (expression)
-
-    expression_list = expression _ ("," _ expression _ )*
-
-    function = function_clause _ (";" _ function_clause _)*
-    function_clause = function_head _ guard? "->" _ expression_list
-    function_head = atom function_args
-    guard = "when" _ guard_body
-    guard_body = expression _ (guard_op _ expression _)*
-    guard_op = "orlese" / "or" / "andalso" / "and" / "," / ";"
-
-    expression = ("begin" _ expression_list "end" _ )
-           / ("(" _ expression _ ")" _ "(" expression_list ")"
-             _ (binary_operator _ expression _)* )
-           / ("(" _ expression _ ")" _ (binary_operator _ expression _)* )
-           / ("not" _ expression _) / ("-" _ expression )
-           / ( value _ binary_operator _ expression _) / (value _)
-
-    binary_operator = "++" / "-" / "*" / "/" / "+" / "=:=" / "=/=" / "=="
-                    / "=<" / "=" / "|" / ">=" / ">" / "<"
-                    / "andalso" / "orelse" / "div" / "rem" / "bxor" / "and"
-                    / "bsl" / "bsr" / "bor" / "band" / "!" / "::" / ".."
-
-    value =  record_update / record_field / function_ref
-          / if / case / receive / fun_type / lambda / trycatch / catch
-          / function_call / boolean / atom / char / binary_comprehension
-          / list_comprehension / list / tuple / map / string / macros
-          / binary / number / identifier / record / triple_dots
-
-    macros = "?" (atom / identifier) function_args?
-
-    record_update = identifier record
-
-    function_ref = "fun" _ ((atom / macros) _ ":")? atom "/" ~"[0-9]*" _
-
-    record_field = identifier "#" atom "." atom _
-
-    function_call = ((atom / identifier) function_args)
-                  / ((atom / identifier / macros) ":" (atom / identifier) function_args)
-
-    function_args = ("()" _) / ("(" _ expression_list ")" _)
-
-    triple_dots = "..." _
-
-    fun_type = "fun" _ "(" _ function_args _ "->" _ expression _ ")" _
-    lambda = "fun" _ lambda_clause (";" _ lambda_clause)* "end"
-    lambda_clause = function_args _ guard? "->" _ expression_list
-
-    if = ("if" _ if_clause (";" _ if_clause)* "end" _)
-    if_clause = guard_body _ "->" _ expression_list _
-
-    receive = "receive" _ (case_clause (";" _ case_clause)*)?
-              ("after" _ expression _ "->" _ expression_list)? "end" _
-
-    case = "case" _ expression _ "of" _ case_clause (";" _ case_clause)* "end" _
-    case_clause = expression _ guard? "->" _ expression_list _
-
-    catch = "catch" _ expression _
-
-    trycatch = ("try" _ expression _ "of" _
-                case_clause (";" _ case_clause)*
-               "catch" _ catch_body catch_after? "end" _)
-             / ("try" _ expression_list ("catch" _ catch_body)? catch_after? "end" _)
-
-    catch_after = "after" _ expression_list
-    catch_body = expression _ (":" _ expression _)? "->" _ expression_list
-
-    atom = ~"[a-z][0-9a-zA-Z_]*" / ("'" ~"[^']*" "'")
-    identifier = ~"[A-Z_][0-9a-zA-Z_]*"
-    _ = ~"\s*" (~"%[^\\r\\n]*\s*")*
-    list = ("[" _ expression_list ("|" _ expression _)? "]" _) / ("[" _ "]" _)
-    list_comprehension = "[" _ comprehension_body "]" _
-    binary_comprehension = "<<" _ comprehension_body ">>" _
-    comprehension_body = expression _ "||" _ expression _ (("," / "<-" / "<=") _ expression _)* _
-    tuple = ("{" _ expression_list "}" _) / ("{" _ "}" _)
-    map   = ("#{" _ keyvalue (_ "," _ keyvalue)* _ "}" _) / ("#{" _ "}" _)
-    record =("#" atom "{" _ expression (_ "," _ expression)* _ "}" _)
-          / ("#" atom "{" _ "}" _)
-    char = "$" "\\\\"? (~"(?s).") _
-    keyvalue = value _ "=>" _ expression _
-    string = ('"' ~r'(\\\\.|[^"])*' '"' _)+
-    binary = ("<<" _ ">>" _) / ("<<" _ binary_part ("," _ binary_part)* ">>" _)
-    binary_part = expression _ (":" _ value _)? ("/" _ typespecifier _)?
-    typespecifier = ~"[a-z][0-9a-z\\\\-:]*"
-    boolean = "true" / "false"
-    number = ~"\-?[0-9]+\#[0-9a-zA-Z]+" / ~"\-?[0-9]+(\.[0-9]+)?((e|E)(\-|\+)?[0-9]+)?"
-    """)
-    try:
-        return grammar.parse(text)
-    except parsimonious.exceptions.ParseError as e:
-        print "Parsing for " + filename + " failed, reason: " + str(e)
-        print "Skipping this file"
-        return None
 
 def reduce_config(ast):
     if ast.expr_name == "number":
@@ -230,10 +128,7 @@ def main():
 
     files = glob.glob(config["files"])
     backup(config["backup_folder"], files)
-    asts = map(lex, zip(files, map(contents, files)))
-
-    if args['--check-parsing']:
-        exit(2 if any(map(lambda x:x is None, asts)) else 0)
+    asts = map(muterl_lex.lex, zip(files, map(contents, files)))
 
     if "functions" in config:
         map(lambda x: filter_fun(re.compile(config["functions"]), True, x), asts)
@@ -250,6 +145,9 @@ def main():
     for name in mutations:
         mutation_matrix[name] = map(lambda x: mutations[name]['count'](x) if x is not None else 0, asts)
         all_mutants = all_mutants + sum(mutation_matrix[name])
+
+    if args['--check-parsing']:
+        exit(2 if any(map(lambda x:x is None, asts)) or all_mutants == 0 else 0)
 
     if args['--mutation-count'] is not None:
         print str(all_mutants)

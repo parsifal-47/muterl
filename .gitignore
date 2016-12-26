@@ -4,6 +4,7 @@ deps
 *.beam
 *.pyc
 *.plt
+*.res
 erl_crash.dump
 ebin
 rel/example_project
