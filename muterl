@@ -121,7 +121,7 @@ def main():
     args = docopt.docopt(__doc__, version='0.1.0')
     config = read_config()
 
-    if args['--mutation-count'] is None and args['--check-parsing'] is None:
+    if (not args['--mutation-count']) and (not args['--check-parsing']):
         if subprocess.call(config["runner"], shell=True) != 0:
             print "Initial test check failed, exiting"
             exit(1)
@@ -149,7 +149,7 @@ def main():
     if args['--check-parsing']:
         exit(2 if any(map(lambda x:x is None, asts)) or all_mutants == 0 else 0)
 
-    if args['--mutation-count'] is not None:
+    if args['--mutation-count']:
         print str(all_mutants)
         exit()
 
