@@ -92,7 +92,7 @@ def lex((filename, text)):
     keyvalue = value _ "=>" _ expression _
     string = ('"' ~r'(\\\\.|[^"])*' '"' _)+
     binary = ("<<" _ ">>" _) / ("<<" _ binary_part ("," _ binary_part)* ">>" _)
-    binary_part = expression _ (":" _ expression _)? ("/" _ typespecifier _)?
+    binary_part = expression _ (":" _ value _)? ("/" _ typespecifier _)?
     typespecifier = ~"[a-z][0-9a-z\\\\-:]*"
     boolean = "true" / "false"
     number = ~"\-?[0-9]+\#[0-9a-zA-Z]+" / ~"\-?[0-9]+(\.[0-9]+)?((e|E)(\-|\+)?[0-9]+)?"
