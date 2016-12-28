@@ -22,18 +22,19 @@ def lex((filename, text)):
     guard_op = "orlese" / "or" / "andalso" / "and" / "," / ";"
 
     expression = ("begin" _ expression_list "end" _ )
-           / ("(" _ expression _ ")" _ "(" expression_list ")"
-             _ (binary_operator _ expression _)* )
-           / ("(" _ expression _ ")" _ (binary_operator _ expression _)* )
+           / ("(" _ expression _ ")" _ (postfix_operation _)*
+             (binary_operator _ expression _)* )
            / ("not" _ expression _) / ("-" _ expression )
-           / ( value _ binary_operator _ expression _) / (value _)
+           / ( value _ (postfix_operation _)* (binary_operator _ expression _)* )
 
     binary_operator = "++" / "-" / "*" / "/=" / "/" / "+" / "=:=" / "=/=" / "=="
                     / "=<" / "=" / "|" / ">=" / ">" / "<" / "orelse"
                     / "andalso" / "or" / "div" / "rem" / "bxor" / "and"
                     / "bsl" / "bsr" / "bor" / "band" / "!" / "::" / ".."
 
-    value =  record_update / record_field / function_ref
+    postfix_operation = function_args / record_field / record_update
+
+    value = function_ref / record_field
           / if / case / receive / fun_type / lambda / trycatch / catch
           / function_call / boolean / atom / char / binary_comprehension
           / list_comprehension / list / tuple / map / string / macros
@@ -41,11 +42,11 @@ def lex((filename, text)):
 
     macros = "?" (atom / identifier) function_args?
 
-    record_update = identifier record
+    record_update = record
 
     function_ref = "fun" _ ((atom / macros) _ ":")? atom "/" ~"[0-9]*" _
 
-    record_field = (("(" _ value _ ")") / identifier) "#" atom "." atom _
+    record_field = "#" atom "." atom _
 
     function_call = ((atom / identifier) function_args)
                   / ((atom / identifier / macros) ":" (atom / identifier) function_args)
@@ -75,7 +76,7 @@ def lex((filename, text)):
              / ("try" _ expression_list ("catch" _ catch_body)? catch_after? "end" _)
 
     catch_after = "after" _ expression_list
-    catch_body = expression _ (":" _ expression _)? "->" _ expression_list
+    catch_body = expression _ (":" _ expression _)? "->" _ expression_list (";" _ catch_body)*
 
     atom = ~"[a-z][0-9a-zA-Z_]*" / ("'" ~r"(\\\\'|[^'])*" "'")
     identifier = ~"[A-Z_][0-9a-zA-Z_]*"
@@ -92,7 +93,8 @@ def lex((filename, text)):
     keyvalue = value _ "=>" _ expression _
     string = ('"' ~r'(\\\\.|[^"])*' '"' _)+
     binary = ("<<" _ ">>" _) / ("<<" _ binary_part ("," _ binary_part)* ">>" _)
-    binary_part = expression _ (":" _ value _)? ("/" _ typespecifier _)?
+    binary_part = expression _ (":" binary_size _)? ("/" _ typespecifier _)?
+    binary_size = (_ value) / ("(" _ expression ")")
     typespecifier = ~"[a-z][0-9a-z\\\\-:]*"
     boolean = "true" / "false"
     number = ~"\-?[0-9]+\#[0-9a-zA-Z]+" / ~"\-?[0-9]+(\.[0-9]+)?((e|E)(\-|\+)?[0-9]+)?"

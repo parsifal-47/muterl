@@ -2,6 +2,7 @@
 
 import os
 import imp
+import shutil
 import subprocess
 import muterl_lex
 import muterl_logic
@@ -9,7 +10,7 @@ import muterl_clause
 import muterl_constants
 
 if os.path.isdir('test_tmp'):
-    os.removedirs('test_tmp')
+    shutil.rmtree('test_tmp')
 
 good_sources = [{'name': 'jsx',
                  'git': 'https://github.com/talentdeficit/jsx',
@@ -19,7 +20,10 @@ good_sources = [{'name': 'jsx',
                  'revision': 'aacb8f2e2fd98a729bd4f54e028c6b742bfb9dcb'},
                 {'name': 'poolboy',
                  'git': 'https://github.com/devinus/poolboy',
-                 'revision': 'd378f996182daa6251ad5438cee4d3f6eb7ea50f'}]
+                 'revision': 'd378f996182daa6251ad5438cee4d3f6eb7ea50f'},
+                {'name': 'lfe',
+                 'git': 'https://github.com/rvirding/lfe',
+                 'revision': 'c05fa59ecf51e345069787476b9e699e42be8cf6'}]
 
 from nose.tools import eq_
 

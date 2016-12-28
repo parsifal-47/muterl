@@ -36,4 +36,25 @@ cd jsx
 ../muterl/muterl
 ```
 
+If files can't be parsed due to compicated macros or parser bug - they are skipped.
+
+While running, it creates a report for survived mutants, for example:
+
+```erlang
+Mutant survived, affected file: src/jsx_decoder.erl
+*** muterl.backup/src/jsx_decoder.erl   2016-12-24 17:18:56.000000000 +0100
+--- src/jsx_decoder.erl 2016-12-24 17:30:57.000000000 +0100
+***************
+*** 1114,1121 ****
+
+  done(<<?space, Rest/binary>>, Handler, [], Config) ->
+      done(Rest, Handler, [], Config);
+- done(<<?newline, Rest/binary>>, Handler, [], Config) ->
+-     done(Rest, Handler, [], Config);
+  done(<<?tab, Rest/binary>>, Handler, [], Config) ->
+      done(Rest, Handler, [], Config);
+  done(<<?cr, Rest/binary>>, Handler, [], Config) ->
+--- 1114,1119 ----
+```
+
 Feel free to create tickets and send your feedback!
