@@ -1,6 +1,6 @@
 # Muterl [![Build Status](https://travis-ci.org/parsifal-47/muterl.svg?branch=master)](https://travis-ci.org/parsifal-47/muterl)
 
-Mutation testing for erlang
+Mutation testing for erlang. It makes small changes to your source code and checks if tests are passing. If they pass -- mutation is reported. The idea behind this kind of testing is to check tests quality.
 
 Supported mutators:
  - clause remove
