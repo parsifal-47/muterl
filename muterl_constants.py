@@ -1,3 +1,4 @@
+from functools import reduce
 
 def count(ast):
     if ast.expr_name in ["number", "boolean"]:

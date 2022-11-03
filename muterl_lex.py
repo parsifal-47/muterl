@@ -1,7 +1,8 @@
 from parsimonious.grammar import Grammar
 import parsimonious.exceptions
 
-def lex((filename, text)):
+def lex(pair):
+    (filename, text) = pair
     grammar = Grammar("""\
     entry = _ (form _ "." _)*
     form = (("-spec" / "-callback") _ atom _ typed_vals _ "->" _ expression _ guard?)
@@ -80,7 +81,7 @@ def lex((filename, text)):
 
     atom = ~"[a-z][0-9a-zA-Z_]*" / ("'" ~r"(\\\\'|[^'])*" "'")
     identifier = ~"[A-Z_][0-9a-zA-Z_]*"
-    _ = ~"\s*" (~"%[^\\r\\n]*\s*")*
+    _ = ~r"\s*" (~r"%[^\\r\\n]*\s*")*
     list = ("[" _ expression_list ("|" _ expression _)? "]" _) / ("[" _ "]" _)
     list_comprehension = "[" _ comprehension_body "]" _
     binary_comprehension = "<<" _ comprehension_body ">>" _
@@ -97,11 +98,11 @@ def lex((filename, text)):
     binary_size = (_ value) / ("(" _ expression ")")
     typespecifier = ~"[a-z][0-9a-z\\\\-:]*"
     boolean = "true" / "false"
-    number = ~"\-?[0-9]+\#[0-9a-zA-Z]+" / ~"\-?[0-9]+(\.[0-9]+)?((e|E)(\-|\+)?[0-9]+)?"
+    number = ~r"\-?[0-9]+\#[0-9a-zA-Z]+" / ~r"\-?[0-9]+(\.[0-9]+)?((e|E)(\-|\+)?[0-9]+)?"
     """)
     try:
         return grammar.parse(text)
     except parsimonious.exceptions.ParseError as e:
-        print "Parsing for " + filename + " failed, reason: " + str(e)
-        print "Skipping this file"
+        print("Parsing for " + filename + " failed, reason: " + str(e))
+        print("Skipping this file")
         return None

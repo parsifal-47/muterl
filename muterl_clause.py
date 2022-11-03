@@ -1,3 +1,4 @@
+from functools import reduce
 
 def clause_count(ast):
     if ast.expr_name[-6:] == "clause":
@@ -18,12 +19,12 @@ def clause_no_sub(number, start, end, ast):
     if ast.children:
         if any(map(lambda x: x.expr_name[-6:] == "clause", ast.children)):
             return (-1, ast.start, ast.end) if number == 0 else (number - 1, start, end)
-        return reduce(lambda (a, b, c), x:clause_no_sub(a, b, c, x),
+        return reduce(lambda t, x:clause_no_sub(t[0], t[1], t[2], x),
             ast.children, (number, start, end))
     return (number, start, end)
 
 def clause_no(number, start, end, ast):
-    return reduce(lambda (a, b, c), x:clause_no_sub(a, b, c, x),
+    return reduce(lambda t, x:clause_no_sub(t[0], t[1], t[2], x),
         ast.children, (number - 1, start, end))
 
 def find_semicolon(number, start, end, ast):
@@ -32,7 +33,7 @@ def find_semicolon(number, start, end, ast):
     if ast.expr_name[-6:] == "clause":
         return (number + 1, start, end)
     if ast.children:
-        return reduce(lambda (a, b, c), x:find_semicolon(a, b, c, x),
+        return reduce(lambda t, x:find_semicolon(t[0], t[1], t[2], x),
             ast.children, (number, start, end))
     return (number, start, end)
 

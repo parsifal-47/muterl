@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """muterl
 Usage:
     muterl [--mutation=<number>]
@@ -23,6 +23,7 @@ import muterl_clause
 import muterl_constants
 from parsimonious.grammar import Grammar
 import parsimonious.exceptions
+from functools import reduce
 
 default_config = {'files': "src/*.erl",
                   'mutants': 100,
@@ -63,7 +64,7 @@ def read_config(file = 'muterl.config'):
     atom = ~"[a-z][0-9a-zA-Z_]*"
     string = '"' ~r'(\\\\"|[^"])*' '"'
     number = ~"[0-9]+"
-    _ = ~"\s*" (~"%[^\\r\\n]*\s*")*
+    _ = ~r"\s*" (~r"%[^\\r\\n]*\s*")*
     """)
     with open(file) as config:
         default_config.update(
@@ -86,7 +87,7 @@ def contents(filename):
 def mutation(number, files, asts, mutation_matrix, runner,
             backup_folder, report, simulate = False):
     if not simulate:
-        print "Running mutation #" + str(number)
+        print("Running mutation #{0}".format(number))
     for mutation_name in mutation_matrix:
         for i in range(0, len(files)):
             if number < mutation_matrix[mutation_name][i]:
@@ -94,10 +95,10 @@ def mutation(number, files, asts, mutation_matrix, runner,
                 if not simulate:
                     if subprocess.call(runner, shell=True) == 0:
                         with open(report, 'a') as file:
-                            file.write("Mutant #" + str(number) + " survived, affected file: " + files[i] + "\n")
-                            file.write(subprocess.check_output("diff -c " +
+                            file.write('Mutant #{0} survived, affected file: {1}\n'.format(number, files[i]))
+                            file.write(str(subprocess.check_output("diff -c " +
                                        backup_folder + "/" + files[i] + " " +
-                                       files[i] + "; true", shell = True))
+                                       files[i] + "; true", shell = True), 'utf-8'))
                     restore(backup_folder, files[i])
                 return
             else:
@@ -115,7 +116,7 @@ def filter_fun(regexp, direction, ast):
     if ast.children:
         ast.children = filter(lambda x: filter_node(regexp, direction, x),
             ast.children)
-        map(lambda x: filter_fun(regexp, direction, x), ast.children)
+        list(map(lambda x: filter_fun(regexp, direction, x), ast.children))
 
 def main():
     args = docopt.docopt(__doc__, version='0.1.0')
@@ -123,18 +124,18 @@ def main():
 
     if (not args['--mutation-count']) and (not args['--check-parsing']):
         if subprocess.call(config["runner"], shell=True) != 0:
-            print "Initial test check failed, exiting"
+            print("Initial test check failed, exiting")
             exit(1)
 
     files = glob.glob(config["files"])
     backup(config["backup_folder"], files)
-    asts = map(muterl_lex.lex, zip(files, map(contents, files)))
+    asts = list(map(muterl_lex.lex, zip(files, map(contents, files))))
 
     if "functions" in config:
-        map(lambda x: filter_fun(re.compile(config["functions"]), True, x), asts)
+        list(map(lambda x: filter_fun(re.compile(config["functions"]), True, x), asts))
 
     if "functions_skip" in config:
-        map(lambda x: filter_fun(re.compile(config["functions_skip"]), False, x), asts)
+        list(map(lambda x: filter_fun(re.compile(config["functions_skip"]), False, x), asts))
 
     for name in config:
         if name in mutations and config[name] == "disable":
@@ -143,25 +144,25 @@ def main():
     mutation_matrix = {}
     all_mutants = 0
     for name in mutations:
-        mutation_matrix[name] = map(lambda x: mutations[name]['count'](x) if x is not None else 0, asts)
+        mutation_matrix[name] = list(map(lambda x: mutations[name]['count'](x) if x is not None else 0, asts))
         all_mutants = all_mutants + sum(mutation_matrix[name])
 
     if args['--check-parsing']:
         exit(2 if any(map(lambda x:x is None, asts)) or all_mutants == 0 else 0)
 
     if args['--mutation-count']:
-        print str(all_mutants)
+        print(str(all_mutants))
         exit()
 
     if args['--mutation'] is not None:
-        print "All mutations count " + str(all_mutants) + ", mutating #" + \
-              args['--mutation']
+        print("All mutations count " + str(all_mutants) + ", mutating #" + \
+              args['--mutation'])
         mutation(int(args['--mutation']), files, asts, mutation_matrix,
         config["runner"], config["backup_folder"], config["report"], True)
     else:
         if all_mutants < config["mutants"]:
-            print "Not enough possibilites to create " + str(config["mutants"]) + \
-                  "only " + str(all_mutants) + " are available"
+            print("Not enough possibilites to create " + str(config["mutants"]) + \
+                  "only " + str(all_mutants) + " are available")
             config["mutants"] = all_mutants
 
         for i in range(0, config["mutants"]):
