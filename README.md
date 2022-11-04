@@ -15,7 +15,7 @@ Default options are:
 ```erlang
 {files, "src/*.erl"}.
 {mutants, 100}.
-{runner, "rebar eunit"}.
+{runner, "rebar3 eunit"}.
 {report, "muterl.report"}.
 {backup_folder, "muterl.backup"}.
 ```
